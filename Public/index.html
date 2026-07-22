@@ -3,130 +3,249 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pide tu Canción</title>
+  <title>Rockola Digital - Pide tu Canción</title>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #181818; color: #fff; margin: 0; padding: 15px; }
-    input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-size: 16px; box-sizing: border-box; }
-    input { background: #333; color: white; }
-    button { background: #ff0000; color: white; font-weight: bold; cursor: pointer; }
-    .card { background: #282828; padding: 15px; border-radius: 8px; margin-top: 15px; }
-    .song-title { font-weight: bold; color: #1db954; }
-    
-    /* Resultados de búsqueda */
-    .search-item {
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --success: #10b981;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text);
+      margin: 0;
+      padding: 16px;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      background: #333;
-      margin-top: 10px;
-      padding: 8px;
-      border-radius: 6px;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin: 0 0 8px 0;
+      color: #fff;
+    }
+
+    p.subtitle {
+      color: var(--subtext);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background-color: var(--card-bg);
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    button.search-btn {
+      padding: 12px 20px;
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: bold;
       cursor: pointer;
     }
-    .search-item img { width: 60px; height: 45px; border-radius: 4px; margin-right: 10px; object-fit: cover; }
-    .search-info { flex-grow: 1; font-size: 14px; }
-    .search-info span { display: block; color: #aaa; font-size: 12px; }
 
-    .alert-box {
-      background: #ff4d4d;
+    .tip-box {
+      background-color: rgba(99, 102, 241, 0.1);
+      border-left: 4px solid var(--accent);
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: var(--subtext);
+      margin-bottom: 20px;
+    }
+
+    .tip-box strong {
       color: #fff;
-      padding: 15px;
+    }
+
+    .results-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .song-card {
+      display: flex;
+      align-items: center;
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: 10px;
+      gap: 12px;
+    }
+
+    .song-card img {
+      width: 60px;
+      height: 60px;
       border-radius: 8px;
-      margin-top: 15px;
+      object-fit: cover;
+    }
+
+    .song-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .song-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0 0 4px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .song-author {
+      font-size: 0.8rem;
+      color: var(--subtext);
+      margin: 0;
+    }
+
+    .add-btn {
+      background-color: #334155;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .add-btn:active {
+      background-color: var(--accent);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      background-color: var(--success);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       display: none;
-      font-size: 14px;
     }
   </style>
 </head>
 <body>
 
-  <h2>📱 Menú Musical</h2>
+  <div class="container">
+    <header>
+      <h1>📻 Rockola Digital</h1>
+      <p class="subtitle">¡Elige tu canción favorita para el local!</p>
+    </header>
 
-  <div id="copyright-alert" class="alert-box">
-    <strong>¡Opps! Tu canción fue saltada por derechos de autor de YouTube.</strong> Por favor intenta pedir otra versión.
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Escribe canción o artista...">
+      <button class="search-btn" onclick="searchSong()">Buscar</button>
+    </div>
+
+    <div class="tip-box">
+      💡 <strong>Consejo:</strong> Si una versión oficial no se reproduce, intenta elegir opciones que digan <em>"Audio"</em> o <em>"Lyric"</em>.
+    </div>
+
+    <div class="results-list" id="resultsList"></div>
   </div>
 
-  <div class="card">
-    <small>Reproduciendo ahora:</small>
-    <div id="current-song" class="song-title">Sin música en reproductor</div>
-  </div>
+  <div class="toast" id="toast">¡Canción agregada a la lista! 🎶</div>
 
-  <div class="card">
-    <h3>🔍 Buscar Canción</h3>
-    <input type="text" id="searchInput" placeholder="Ej: Bad Bunny - Monaco">
-    <button onclick="search()">Buscar en YouTube 🔎</button>
-
-    <div id="results-list"></div>
-  </div>
-
-  <div class="card">
-    <h3>Cola actual (<span id="queue-count">0</span>)</h3>
-    <ol id="user-queue"></ol>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
 
-    function search() {
-      const query = document.getElementById('searchInput').value.trim();
-      if (!query) return alert('Escribe el nombre de una canción o artista');
-
-      document.getElementById('results-list').innerHTML = '<p style="color:#aaa;">Buscando en YouTube...</p>';
-      socket.emit('searchSong', query);
+    function searchSong() {
+      const query = document.getElementById('searchInput').value;
+      if (query.trim() !== '') {
+        socket.emit('searchSong', query);
+      }
     }
 
-    // Mostrar los resultados de la búsqueda
+    // Permitir buscar al presionar 'Enter'
+    document.getElementById('searchInput').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        searchSong();
+      }
+    });
+
     socket.on('searchResults', (videos) => {
-      const resultsDiv = document.getElementById('results-list');
-      resultsDiv.innerHTML = '';
+      const resultsList = document.getElementById('resultsList');
+      resultsList.innerHTML = '';
 
       if (videos.length === 0) {
-        resultsDiv.innerHTML = '<p>No se encontraron resultados.</p>';
+        resultsList.innerHTML = '<p style="text-align:center; color: var(--subtext);">No se encontraron resultados.</p>';
         return;
       }
 
       videos.forEach((video) => {
-        const item = document.createElement('div');
-        item.className = 'search-item';
-        item.innerHTML = `
-          <img src="${video.thumbnail}" alt="thumb">
-          <div class="search-info">
-            <strong>${video.title}</strong>
-            <span>${video.author.name} • ${video.timestamp}</span>
+        const card = document.createElement('div');
+        card.className = 'song-card';
+
+        card.innerHTML = `
+          <img src="${video.thumbnail}" alt="thumbnail">
+          <div class="song-info">
+            <p class="song-title">${video.title}</p>
+            <p class="song-author">${video.author.name}</p>
           </div>
+          <button class="add-btn" onclick="addSong('${video.videoId}', '${escapeHtml(video.title)}')">+ Pedir</button>
         `;
-        
-        // Al hacer clic en un resultado, se envía a la cola
-        item.onclick = () => {
-          socket.emit('addSong', { id: video.videoId, title: video.title });
-          resultsDiv.innerHTML = '';
-          document.getElementById('searchInput').value = '';
-          alert('¡Canción agregada a la cola!');
-        };
 
-        resultsDiv.appendChild(item);
+        resultsList.appendChild(card);
       });
     });
 
-    socket.on('songSkippedError', () => {
-      const alertBox = document.getElementById('copyright-alert');
-      alertBox.style.display = 'block';
-      setTimeout(() => alertBox.style.display = 'none', 10000);
-    });
+    function addSong(id, title) {
+      socket.emit('addSong', { id, title });
+      showToast();
+    }
 
-    socket.on('updateQueue', (data) => {
-      document.getElementById('current-song').innerText = data.currentSong ? data.currentSong.title : 'Sin música en reproductor';
-      
-      const queueOl = document.getElementById('user-queue');
-      queueOl.innerHTML = '';
-      document.getElementById('queue-count').innerText = data.queue.length;
+    function showToast() {
+      const toast = document.getElementById('toast');
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3000);
+    }
 
-      data.queue.forEach((song) => {
-        const li = document.createElement('li');
-        li.innerText = song.title;
-        queueOl.appendChild(li);
-      });
-    });
+    function escapeHtml(text) {
+      return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
   </script>
 </body>
 </html>
