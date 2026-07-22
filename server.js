@@ -3,19 +3,48 @@ const http = require('http');
 const { Server } = require('socket.io');
 const yts = require('yt-search');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Servir archivos estáticos tanto desde la raíz como desde la carpeta public
-app.use(express.static(path.join(__dirname)));
+// Servir archivos estáticos desde cualquier carpeta donde puedan estar
+app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Función para buscar un archivo en la raíz o en /public
+function findFile(filename) {
+  const rootPath = path.join(__dirname, filename);
+  const publicPath = path.join(__dirname, 'public', filename);
+  if (fs.existsSync(publicPath)) return publicPath;
+  if (fs.existsSync(rootPath)) return rootPath;
+  return null;
+}
+
+// Ruta Principal (Clientes)
+app.get('/', (req, res) => {
+  const filePath = findFile('index.html');
+  if (filePath) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('Error: No se encontró index.html en el repositorio.');
+  }
+});
+
+// Ruta del Reproductor (Tablet)
+app.get(['/player', '/player.html'], (req, res) => {
+  const filePath = findFile('player.html');
+  if (filePath) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('Error: No se encontró player.html en el repositorio.');
+  }
+});
 
 let queue = [];
 let currentSong = null;
 
-// Lista de géneros para reproducción automática
 const AUTO_PLAY_GENRES = [
   'rock en espanol clasicos',
   'pop en espanol exitos',
@@ -23,25 +52,6 @@ const AUTO_PLAY_GENRES = [
   'soda stereo exitos',
   'latin pop hits'
 ];
-
-// Rutas para las páginas
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'), (err) => {
-    if (err) res.sendFile(path.join(__dirname, 'index.html'));
-  });
-});
-
-app.get('/player', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'player.html'), (err) => {
-    if (err) res.sendFile(path.join(__dirname, 'player.html'));
-  });
-});
-
-app.get('/player.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'player.html'), (err) => {
-    if (err) res.sendFile(path.join(__dirname, 'player.html'));
-  });
-});
 
 io.on('connection', (socket) => {
   socket.emit('updateQueue', { queue, currentSong });
@@ -102,7 +112,6 @@ io.on('connection', (socket) => {
   }
 });
 
-// Usar el puerto de Render o el 3000 local
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
