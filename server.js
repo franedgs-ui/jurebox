@@ -13,10 +13,15 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Función para buscar un archivo en la raíz o en /public
+// Función para buscar un archivo en la raíz, public o Público
 function findFile(filename) {
   const rootPath = path.join(__dirname, filename);
   const publicPath = path.join(__dirname, 'public', filename);
+  const publicoPath = path.join(__dirname, 'Público', filename);
+  const publicoPath2 = path.join(__dirname, 'publico', filename);
+
+  if (fs.existsSync(publicoPath)) return publicoPath;
+  if (fs.existsSync(publicoPath2)) return publicoPath2;
   if (fs.existsSync(publicPath)) return publicPath;
   if (fs.existsSync(rootPath)) return rootPath;
   return null;
