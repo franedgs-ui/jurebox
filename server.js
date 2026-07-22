@@ -11,7 +11,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 // Servir archivos estáticos desde cualquier carpeta donde puedan estar
 app.use(express.static(__dirname));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'Public')));
 app.use(express.static(path.join(__dirname, 'Público')));
 app.use(express.static(path.join(__dirname, 'publico')));
 
