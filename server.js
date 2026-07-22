@@ -9,43 +9,57 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Servir archivos estáticos desde cualquier carpeta donde puedan estar
-app.use(express.static(__dirname));
-app.use(express.static(path.join(__dirname, 'Public')));
-app.use(express.static(path.join(__dirname, 'Público')));
-app.use(express.static(path.join(__dirname, 'publico')));
+// Función para buscar un archivo recursivamente en todo el proyecto
+function searchFileRecursively(dir, targetFile) {
+  try {
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      if (file === 'node_modules' || file === '.git') continue;
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
 
-// Función para buscar un archivo en la raíz, public o Público
-function findFile(filename) {
-  const rootPath = path.join(__dirname, filename);
-  const publicPath = path.join(__dirname, 'public', filename);
-  const publicoPath = path.join(__dirname, 'Público', filename);
-  const publicoPath2 = path.join(__dirname, 'publico', filename);
-
-  if (fs.existsSync(publicoPath)) return publicoPath;
-  if (fs.existsSync(publicoPath2)) return publicoPath2;
-  if (fs.existsSync(publicPath)) return publicPath;
-  if (fs.existsSync(rootPath)) return rootPath;
+      if (stat.isDirectory()) {
+        const found = searchFileRecursively(fullPath, targetFile);
+        if (found) return found;
+      } else if (file.toLowerCase() === targetFile.toLowerCase()) {
+        return fullPath;
+      }
+    }
+  } catch (e) {
+    console.error("Error buscando archivo:", e);
+  }
   return null;
 }
 
-// Ruta Principal (Clientes)
-app.get('/', (req, res) => {
-  const filePath = findFile('index.html');
-  if (filePath) {
-    res.sendFile(filePath);
+// Servir estáticos desde todas las subcarpetas
+app.use(express.static(__dirname));
+try {
+  const dirs = fs.readdirSync(__dirname);
+  dirs.forEach(file => {
+    const fullPath = path.join(__dirname, file);
+    if (fs.statSync(fullPath).isDirectory() && file !== 'node_modules' && file !== '.git') {
+      app.use(express.static(fullPath));
+    }
+  });
+} catch(e) {}
+
+// Ruta principal para Clientes
+app.get(['/', '/index.html'], (req, res) => {
+  const indexPath = searchFileRecursively(__dirname, 'index.html');
+  if (indexPath) {
+    res.sendFile(indexPath);
   } else {
-    res.status(404).send('Error: No se encontró index.html en el repositorio.');
+    res.status(404).send('No se encontró index.html en el repositorio.');
   }
 });
 
-// Ruta del Reproductor (Tablet)
+// Ruta para la Tablet
 app.get(['/player', '/player.html'], (req, res) => {
-  const filePath = findFile('player.html');
-  if (filePath) {
-    res.sendFile(filePath);
+  const playerPath = searchFileRecursively(__dirname, 'player.html');
+  if (playerPath) {
+    res.sendFile(playerPath);
   } else {
-    res.status(404).send('Error: No se encontró player.html en el repositorio.');
+    res.status(404).send('No se encontró player.html en el repositorio.');
   }
 });
 
@@ -119,6 +133,10 @@ io.on('connection', (socket) => {
   }
 });
 
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
