@@ -14,6 +14,8 @@
       --text: #f8fafc;
       --subtext: #94a3b8;
       --success: #10b981;
+      --badge-user: #10b981;
+      --badge-auto: #f59e0b;
     }
 
     body {
@@ -35,19 +37,74 @@
 
     header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     h1 {
       font-size: 1.8rem;
-      margin: 0 0 8px 0;
+      margin: 0 0 4px 0;
       color: #fff;
     }
 
     p.subtitle {
       color: var(--subtext);
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       margin: 0;
+    }
+
+    /* Tarjeta de Canción Actual */
+    .now-playing-card {
+      background: linear-gradient(135deg, #312e81 0%, #1e1b4b 100%);
+      border: 1px solid var(--accent);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.2);
+    }
+
+    .now-playing-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .now-playing-title-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #a5b4fc;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .badge-user {
+      background-color: rgba(16, 185, 129, 0.2);
+      color: var(--badge-user);
+      border: 1px solid var(--badge-user);
+    }
+
+    .badge-auto {
+      background-color: rgba(245, 158, 11, 0.2);
+      color: var(--badge-auto);
+      border: 1px solid var(--badge-auto);
+    }
+
+    .current-song-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .search-box {
@@ -86,19 +143,23 @@
       border-left: 4px solid var(--accent);
       padding: 10px 12px;
       border-radius: 6px;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--subtext);
+      margin-bottom: 16px;
+    }
+
+    .results-list, .queue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       margin-bottom: 20px;
     }
 
-    .tip-box strong {
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 16px 0 8px 0;
       color: #fff;
-    }
-
-    .results-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
     }
 
     .song-card {
@@ -110,9 +171,22 @@
       gap: 12px;
     }
 
+    .queue-number {
+      background-color: #334155;
+      color: #fff;
+      font-weight: bold;
+      font-size: 0.85rem;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .song-card img {
-      width: 60px;
-      height: 60px;
+      width: 50px;
+      height: 50px;
       border-radius: 8px;
       object-fit: cover;
     }
@@ -123,7 +197,7 @@
     }
 
     .song-title {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: 600;
       margin: 0 0 4px 0;
       white-space: nowrap;
@@ -132,7 +206,7 @@
     }
 
     .song-author {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--subtext);
       margin: 0;
     }
@@ -173,16 +247,33 @@
       <p class="subtitle">¡Elige tu canción favorita para el local!</p>
     </header>
 
+    <!-- Tarjeta de Canción en Reproducción -->
+    <div class="now-playing-card">
+      <div class="now-playing-header">
+        <span class="now-playing-title-label">🔊 En Reproducción</span>
+        <span id="songTypeBadge" class="badge badge-auto">Radio</span>
+      </div>
+      <p class="current-song-title" id="currentSongTitle">Cargando canción...</p>
+    </div>
+
+    <!-- Buscador -->
     <div class="search-box">
       <input type="text" id="searchInput" placeholder="Escribe canción o artista...">
       <button class="search-btn" onclick="searchSong()">Buscar</button>
     </div>
 
     <div class="tip-box">
-      💡 <strong>Consejo:</strong> Si una versión oficial no se reproduce, intenta elegir opciones que digan <em>"Audio"</em> o <em>"Lyric"</em>.
+      💡 <strong>Consejo:</strong> Si una versión oficial falla, intenta con opciones <em>"Audio"</em> o <em>"Lyric"</em>.
     </div>
 
+    <!-- Resultados de Búsqueda -->
     <div class="results-list" id="resultsList"></div>
+
+    <!-- Lista de Espera / Cola -->
+    <div class="section-title">📋 Próximas canciones en cola</div>
+    <div class="queue-list" id="queueList">
+      <p style="color: var(--subtext); font-size: 0.85rem;">No hay canciones en espera.</p>
+    </div>
   </div>
 
   <div class="toast" id="toast">¡Canción agregada a la lista! 🎶</div>
@@ -190,6 +281,60 @@
   <script>
     const socket = io();
 
+    // Actualización de Canción Actual y Cola de Reproducción
+    socket.on('updateQueue', (data) => {
+      const { queue, currentSong } = data;
+
+      // 1. Actualizar "En Reproducción"
+      const currentTitleEl = document.getElementById('currentSongTitle');
+      const badgeEl = document.getElementById('songTypeBadge');
+
+      if (currentSong) {
+        let title = currentSong.title;
+        let isAuto = title.includes('📻 (Auto)');
+
+        // Limpiar el título visualmente si es automático
+        cleanTitle = title.replace('📻 (Auto) ', '');
+        currentTitleEl.innerText = cleanTitle;
+
+        if (isAuto) {
+          badgeEl.innerText = 'Radio Auto';
+          badgeEl.className = 'badge badge-auto';
+        } else {
+          badgeEl.innerText = 'Pedido por cliente';
+          badgeEl.className = 'badge badge-user';
+        }
+      } else {
+        currentTitleEl.innerText = 'Esperando música...';
+        badgeEl.innerText = 'En espera';
+        badgeEl.className = 'badge badge-auto';
+      }
+
+      // 2. Actualizar Lista de Espera con Números de Turno
+      const queueList = document.getElementById('queueList');
+      queueList.innerHTML = '';
+
+      if (!queue || queue.length === 0) {
+        queueList.innerHTML = '<p style="color: var(--subtext); font-size: 0.85rem;">No hay canciones pedidas en cola.</p>';
+        return;
+      }
+
+      queue.forEach((song, index) => {
+        const item = document.createElement('div');
+        item.className = 'song-card';
+
+        item.innerHTML = `
+          <div class="queue-number">#${index + 1}</div>
+          <div class="song-info">
+            <p class="song-title">${song.title}</p>
+            <p class="song-author">Pedido en turno #${index + 1}</p>
+          </div>
+        `;
+        queueList.appendChild(item);
+      });
+    });
+
+    // Búsqueda de canciones
     function searchSong() {
       const query = document.getElementById('searchInput').value;
       if (query.trim() !== '') {
@@ -197,11 +342,8 @@
       }
     }
 
-    // Permitir buscar al presionar 'Enter'
     document.getElementById('searchInput').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        searchSong();
-      }
+      if (e.key === 'Enter') searchSong();
     });
 
     socket.on('searchResults', (videos) => {
@@ -232,6 +374,8 @@
 
     function addSong(id, title) {
       socket.emit('addSong', { id, title });
+      document.getElementById('resultsList').innerHTML = ''; // Limpiar resultados
+      document.getElementById('searchInput').value = ''; // Limpiar buscador
       showToast();
     }
 
