@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pide tu Canción</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #181818; color: #fff; margin: 0; padding: 15px; }
+    input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-size: 16px; box-sizing: border-box; }
+    input { background: #333; color: white; }
+    button { background: #ff0000; color: white; font-weight: bold; cursor: pointer; }
+    .card { background: #282828; padding: 15px; border-radius: 8px; margin-top: 15px; }
+    .song-title { font-weight: bold; color: #1db954; }
+    
+    /* Resultados de búsqueda */
+    .search-item {
+      display: flex;
+      align-items: center;
+      background: #333;
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .search-item img { width: 60px; height: 45px; border-radius: 4px; margin-right: 10px; object-fit: cover; }
+    .search-info { flex-grow: 1; font-size: 14px; }
+    .search-info span { display: block; color: #aaa; font-size: 12px; }
+
+    .alert-box {
+      background: #ff4d4d;
+      color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      display: none;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>📱 Menú Musical</h2>
+
+  <div id="copyright-alert" class="alert-box">
+    <strong>¡Opps! Tu canción fue saltada por derechos de autor de YouTube.</strong> Por favor intenta pedir otra versión.
+  </div>
+
+  <div class="card">
+    <small>Reproduciendo ahora:</small>
+    <div id="current-song" class="song-title">Sin música en reproductor</div>
+  </div>
+
+  <div class="card">
+    <h3>🔍 Buscar Canción</h3>
+    <input type="text" id="searchInput" placeholder="Ej: Bad Bunny - Monaco">
+    <button onclick="search()">Buscar en YouTube 🔎</button>
+
+    <div id="results-list"></div>
+  </div>
+
+  <div class="card">
+    <h3>Cola actual (<span id="queue-count">0</span>)</h3>
+    <ol id="user-queue"></ol>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    function search() {
+      const query = document.getElementById('searchInput').value.trim();
+      if (!query) return alert('Escribe el nombre de una canción o artista');
+
+      document.getElementById('results-list').innerHTML = '<p style="color:#aaa;">Buscando en YouTube...</p>';
+      socket.emit('searchSong', query);
+    }
+
+    // Mostrar los resultados de la búsqueda
+    socket.on('searchResults', (videos) => {
+      const resultsDiv = document.getElementById('results-list');
+      resultsDiv.innerHTML = '';
+
+      if (videos.length === 0) {
+        resultsDiv.innerHTML = '<p>No se encontraron resultados.</p>';
+        return;
+      }
+
+      videos.forEach((video) => {
+        const item = document.createElement('div');
+        item.className = 'search-item';
+        item.innerHTML = `
+          <img src="${video.thumbnail}" alt="thumb">
+          <div class="search-info">
+            <strong>${video.title}</strong>
+            <span>${video.author.name} • ${video.timestamp}</span>
+          </div>
+        `;
+        
+        // Al hacer clic en un resultado, se envía a la cola
+        item.onclick = () => {
+          socket.emit('addSong', { id: video.videoId, title: video.title });
+          resultsDiv.innerHTML = '';
+          document.getElementById('searchInput').value = '';
+          alert('¡Canción agregada a la cola!');
+        };
+
+        resultsDiv.appendChild(item);
+      });
+    });
+
+    socket.on('songSkippedError', () => {
+      const alertBox = document.getElementById('copyright-alert');
+      alertBox.style.display = 'block';
+      setTimeout(() => alertBox.style.display = 'none', 10000);
+    });
+
+    socket.on('updateQueue', (data) => {
+      document.getElementById('current-song').innerText = data.currentSong ? data.currentSong.title : 'Sin música en reproductor';
+      
+      const queueOl = document.getElementById('user-queue');
+      queueOl.innerHTML = '';
+      document.getElementById('queue-count').innerText = data.queue.length;
+
+      data.queue.forEach((song) => {
+        const li = document.createElement('li');
+        li.innerText = song.title;
+        queueOl.appendChild(li);
+      });
+    });
+  </script>
+</body>
+</html>

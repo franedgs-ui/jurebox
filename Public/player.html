@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reproductor Restaurante - YouTube</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #121212; color: #fff; text-align: center; padding: 20px; }
+    #player-container { margin: 20px auto; max-width: 640px; }
+    .queue-list { list-style: none; padding: 0; max-width: 400px; margin: 0 auto; text-align: left; }
+    .queue-item { background: #222; padding: 10px; margin-bottom: 5px; border-radius: 5px; }
+    #error-notice { color: #ff4d4d; font-weight: bold; margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>🎵 Reproductor del Local</h1>
+  <h2 id="now-playing">Cargando...</h2>
+  <div id="error-notice">⚠️ Este video está bloqueado por copyright. Saltando canción...</div>
+
+  <div id="player-container">
+    <div id="yt-player"></div>
+  </div>
+
+  <button onclick="skip()" style="padding:12px 24px; font-size:16px; cursor:pointer; background:#ff0000; color:white; border:none; border-radius:6px; font-weight:bold;">Saltar Canción ⏭️</button>
+
+  <h3>Próximas canciones:</h3>
+  <ul id="queue" class="queue-list"></ul>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    const socket = io();
+    let player;
+    let currentVideoId = null;
+    let currentSongTitle = "";
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('yt-player', {
+        height: '360',
+        width: '640',
+        playerVars: {
+          'autoplay': 1,
+          'origin': window.location.origin
+        },
+        events: {
+          'onStateChange': onPlayerStateChange,
+          'onError': onPlayerError
+        }
+      });
+    }
+
+    function onPlayerError(event) {
+      console.log('Error de derechos de autor detectado:', event.data);
+      const errorDiv = document.getElementById('error-notice');
+      errorDiv.style.display = 'block';
+
+      setTimeout(() => {
+        errorDiv.style.display = 'none';
+        socket.emit('songError', currentSongTitle);
+      }, 2000);
+    }
+
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.ENDED) {
+        socket.emit('songEnded');
+      }
+    }
+
+    socket.on('updateQueue', (data) => {
+      document.getElementById('error-notice').style.display = 'none';
+
+      if (data.currentSong) {
+        currentSongTitle = data.currentSong.title;
+        document.getElementById('now-playing').innerText = "Sonando: " + currentSongTitle;
+        
+        if (currentVideoId !== data.currentSong.id) {
+          currentVideoId = data.currentSong.id;
+          if (player && player.loadVideoById) {
+            player.loadVideoById(data.currentSong.id);
+          }
+        }
+      } else {
+        document.getElementById('now-playing').innerText = "Cola vacía. Esperando canciones...";
+        if (player && player.stopVideo) player.stopVideo();
+        currentVideoId = null;
+        currentSongTitle = "";
+      }
+
+      const queueUl = document.getElementById('queue');
+      queueUl.innerHTML = '';
+      data.queue.forEach((song, index) => {
+        const li = document.createElement('li');
+        li.className = 'queue-item';
+        li.innerText = `${index + 1}. ${song.title}`;
+        queueUl.appendChild(li);
+      });
+    });
+
+    function skip() {
+      socket.emit('skipSong');
+    }
+  </script>
+</body>
+</html>
