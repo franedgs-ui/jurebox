@@ -2,33 +2,50 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const yts = require('yt-search');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-app.use(express.static('public'));
+// Servir archivos estáticos tanto desde la raíz como desde la carpeta public
+app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 
 let queue = [];
 let currentSong = null;
 
-// 📻 LISTA DE BÚSQUEDAS PARA EL MODO AUTOMÁTICO
-// Puedes agregar o cambiar los géneros/artistas que quieras para tu local
+// Lista de géneros para reproducción automática
 const AUTO_PLAY_GENRES = [
   'rock en espanol clasicos',
   'pop en espanol exitos',
   'musica ambiental restaurante',
-  'indie rock playlist',
-  'baladas en espanol exitos',
-  'lounge chillout music',
   'soda stereo exitos',
   'latin pop hits'
 ];
 
+// Rutas para las páginas
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'), (err) => {
+    if (err) res.sendFile(path.join(__dirname, 'index.html'));
+  });
+});
+
+app.get('/player', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'player.html'), (err) => {
+    if (err) res.sendFile(path.join(__dirname, 'player.html'));
+  });
+});
+
+app.get('/player.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'player.html'), (err) => {
+    if (err) res.sendFile(path.join(__dirname, 'player.html'));
+  });
+});
+
 io.on('connection', (socket) => {
   socket.emit('updateQueue', { queue, currentSong });
 
-  // Escuchar cuando el usuario busca una canción
   socket.on('searchSong', async (query) => {
     try {
       const searchResults = await yts(query + ' lyric audio');
@@ -40,7 +57,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Agregar canción elegida por un cliente
   socket.on('addSong', (song) => {
     queue.push(song);
     if (!currentSong) {
@@ -50,14 +66,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('songEnded', () => {
-    playNext();
-  });
-
-  socket.on('skipSong', () => {
-    playNext();
-  });
-
+  socket.on('songEnded', () => playNext());
+  socket.on('skipSong', () => playNext());
   socket.on('songError', (songTitle) => {
     io.emit('songSkippedError', songTitle);
     playNext();
@@ -65,19 +75,14 @@ io.on('connection', (socket) => {
 
   async function playNext() {
     if (queue.length > 0) {
-      // 1. Si hay canciones pedidas por los clientes, reproduce la siguiente
       currentSong = queue.shift();
       io.emit('updateQueue', { queue, currentSong });
     } else {
-      // 2. Si la cola está vacía, busca una canción aleatoria
-      console.log('Cola vacia. Generando cancion automatica...');
       try {
-        // Selecciona un género al azar de la lista AUTO_PLAY_GENRES
         const randomGenre = AUTO_PLAY_GENRES[Math.floor(Math.random() * AUTO_PLAY_GENRES.length)];
         const searchResults = await yts(randomGenre + ' lyric audio');
         
         if (searchResults.videos.length > 0) {
-          // Elige uno de los primeros 10 resultados al azar
           const randomIndex = Math.floor(Math.random() * Math.min(10, searchResults.videos.length));
           const randomVideo = searchResults.videos[randomIndex];
           
@@ -97,10 +102,7 @@ io.on('connection', (socket) => {
   }
 });
 
-// Cambiar esto:
-// server.listen(3000, ...);
-
-// Por esto otro (para que lea el puerto dinámico de Render):
+// Usar el puerto de Render o el 3000 local
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
